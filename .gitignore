@@ -9,3 +9,6 @@ obsidian-vault/
 .DS_Store
 .idea/
 .vscode/
+
+# Local documentation capture scratch files
+docs/images/obsidian-graph-fullscreen.png

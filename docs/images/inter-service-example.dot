@@ -1,0 +1,23 @@
+digraph G {
+  graph [overlap=false, splines=true, bgcolor="white", pad=0.2, nodesep=0.7, ranksep=1.0, label="Inter-service dependency graph", labelloc=t, fontsize=22, fontname="Helvetica-Bold"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=14, color="#334155", penwidth=1.3];
+  edge [color="#64748b", arrowsize=0.9, penwidth=1.4, fontname="Helvetica", fontsize=11];
+  gateway [label="api-gateway", fillcolor="#fde68a"];
+  workflow [label="workflow-service", fillcolor="#93c5fd"];
+  customer [label="customer-service", fillcolor="#fbcfe8"];
+  asset [label="asset-service", fillcolor="#93c5fd"];
+  decision [label="decision-service", fillcolor="#86efac"];
+  notify [label="notification-service", fillcolor="#fdba74"];
+  partner [label="partner-service", fillcolor="#fed7aa"];
+  gateway -> workflow [label="HTTP"];
+  gateway -> customer [label="HTTP"];
+  gateway -> asset [label="HTTP"];
+  workflow -> decision [label="HTTP"];
+  workflow -> asset [label="HTTP"];
+  workflow -> notify [label="event"];
+  customer -> decision [label="HTTP"];
+  asset -> decision [label="HTTP"];
+  asset -> partner [label="HTTP"];
+  partner -> workflow [label="webhook"];
+  notify -> gateway [label="status"];
+}

@@ -1,0 +1,27 @@
+digraph G {
+  rankdir=LR;
+  graph [bgcolor="white", pad=0.25, nodesep=0.65, ranksep=1.0, splines=ortho, label="Intra-service workflow path", labelloc=t, fontsize=22, fontname="Helvetica-Bold"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=13, color="#334155", penwidth=1.2, margin="0.15,0.08"];
+  edge [color="#475569", arrowsize=0.8, penwidth=1.2, fontname="Helvetica", fontsize=10];
+  c1 [label="WorkflowController.startWorkflow()", fillcolor="#fde68a"];
+  f1 [label="WorkflowFactory.startWorkflow()", fillcolor="#fca5a5"];
+  v2 [label="WorkflowExecution.startWorkflowV2()", fillcolor="#93c5fd"];
+  v3 [label="WorkflowExecution.startWorkflowV3()", fillcolor="#93c5fd"];
+  p1 [label="WorkflowExecution.processAssetContext()", fillcolor="#93c5fd"];
+  a1 [label="OfferAsyncExecutor.executeAsync()", fillcolor="#c4b5fd"];
+  d1 [label="DecisionPlugin.execute()", fillcolor="#86efac"];
+  r1 [label="RoutingService.route()", fillcolor="#fdba74"];
+  vcmp [label="ValuationComparator.compare()", fillcolor="#e2e8f0"];
+  n1 [label="NotificationService.publish()", fillcolor="#fdba74"];
+  c1 -> f1;
+  f1 -> v2 [color="#dc2626", penwidth=2.0];
+  f1 -> v3 [color="#dc2626", penwidth=2.0];
+  v2 -> r1;
+  v2 -> vcmp;
+  v2 -> d1 [color="#16a34a"];
+  v2 -> n1;
+  v3 -> p1;
+  v3 -> a1;
+  a1 -> d1 [color="#16a34a"];
+  a1 -> vcmp;
+}

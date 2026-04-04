@@ -1,0 +1,22 @@
+digraph G {
+  rankdir=LR;
+  graph [bgcolor="white", pad=0.2, nodesep=0.8, ranksep=1.0, splines=true, label="Cross-service dependency neighborhood", labelloc=t, fontsize=22, fontname="Helvetica-Bold"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=14, color="#334155", penwidth=1.3];
+  edge [arrowsize=0.9, penwidth=1.6, fontname="Helvetica", fontsize=11];
+  workflow [label="workflow-service", fillcolor="#93c5fd"];
+  asset [label="asset-service", fillcolor="#93c5fd"];
+  lead [label="lead-service", fillcolor="#86efac"];
+  gateway [label="api-gateway", fillcolor="#fde68a"];
+  partner [label="partner-service", fillcolor="#fed7aa"];
+  customer [label="customer-service", fillcolor="#fbcfe8"];
+  decision [label="decision-service", fillcolor="#e2e8f0"];
+  workflow -> asset [label="getValuation()", color="#dc2626", penwidth=3.0];
+  asset -> workflow [label="getRiskBucket()", color="#dc2626", penwidth=3.0];
+  workflow -> lead [label="application context", color="#2563eb", penwidth=2.0];
+  lead -> workflow [label="status callback", color="#2563eb", penwidth=2.0];
+  gateway -> workflow [label="startWorkflow()", color="#64748b"];
+  gateway -> asset [label="asset lookup", color="#64748b"];
+  workflow -> decision [label="decision request", color="#64748b"];
+  asset -> partner [label="partner sync", color="#64748b"];
+  customer -> workflow [label="profile context", color="#64748b"];
+}

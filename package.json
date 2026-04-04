@@ -1,10 +1,14 @@
 {
   "name": "microservice-kg",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Consolidated microservice knowledge graph generator for multi-repo workspaces, with MCP support for agentic coding",
   "type": "module",
   "files": [
     "src",
+    "docs/images/inter-service-example.png",
+    "docs/images/dependency-neighborhood-example.png",
+    "docs/images/intra-service-workflow-example.png",
+    "docs/images/obsidian-graph-view.png",
     "README.md",
     "LICENSE"
   ],

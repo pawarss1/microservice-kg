@@ -1,6 +1,12 @@
 # microservice-kg
 
+[![npm version](https://img.shields.io/npm/v/microservice-kg)](https://www.npmjs.com/package/microservice-kg)
+[![GitHub repo](https://img.shields.io/badge/GitHub-pawarss1%2Fmicroservice--kg-black)](https://github.com/pawarss1/microservice-kg)
+
 `microservice-kg` builds a consolidated knowledge graph for a directory containing many services.
+
+`npm`: [microservice-kg](https://www.npmjs.com/package/microservice-kg)  
+`GitHub`: [pawarss1/microservice-kg](https://github.com/pawarss1/microservice-kg)
 
 It is designed for multi-repo microservice workspaces where static code reasoning needs to happen at two levels at once:
 
@@ -17,22 +23,32 @@ The first version focuses on Java/Spring microservices and produces:
 
 ## Why this exists
 
-Tools like GitNexus are strong inside a single repo. This project adds a service-aware layer on top of a multi-repo workspace so you can answer:
+In multi-service codebases, code search alone is not enough. You also need a durable model of:
+
+- which services exist
+- which services call which other services
+- which class and method create that dependency
+- which controller or provider method receives the traffic on the target side
+
+`microservice-kg` adds that architecture layer on top of a multi-repo workspace so you can answer:
 
 - which services call which other services
 - which class and method create that dependency
 - which controller method receives the traffic on the target side
 
-That becomes valuable when a change crosses service boundaries and code search alone is not enough.
+That becomes valuable when a change crosses service boundaries and a local file-by-file view is no longer sufficient.
 
 ## Why this is useful for agentic coding
 
-Agentic coding systems are good at editing code, but they often lack a durable architecture view across many services.
+Public coding agents such as Claude Code and Codex are documented to inspect repositories, read and edit files, run commands, and gain extra context through MCP. Claude Code also documents a `ripgrep` dependency in its setup flow, which reinforces that file and search tooling are part of the normal local reasoning path.
+
+That makes these systems strong at local code understanding, but they do not start with a durable relational model of service-to-service dependencies across a workspace.
 
 That creates a predictable failure mode:
 
 - the agent finds one caller and assumes it is the only caller
 - the agent edits one repo without seeing the upstream or downstream service contract
+- the agent repeatedly reconstructs architecture from ad-hoc searches and partial code reads
 - the agent invents likely service relationships that are not actually present in code
 
 `microservice-kg` reduces that failure mode by turning service dependencies into queryable graph data.
@@ -62,6 +78,38 @@ That means an agent can answer:
 with evidence instead of speculation.
 
 This does not eliminate hallucination entirely, but it narrows the space in which an agent has to infer behavior.
+
+## Screenshots
+
+The images below are sanitized examples intended for the public README.
+
+### Inter-service graph
+
+![Inter-service dependency graph](docs/images/inter-service-example.png)
+
+### Cross-service neighborhood
+
+![Cross-service dependency neighborhood](docs/images/dependency-neighborhood-example.png)
+
+### Intra-service workflow path
+
+![Intra-service workflow path](docs/images/intra-service-workflow-example.png)
+
+### Obsidian graph view
+
+![Obsidian graph view](docs/images/obsidian-graph-view.png)
+
+## Install
+
+```bash
+npm install -g microservice-kg
+```
+
+Or run it without a global install:
+
+```bash
+npx microservice-kg analyze /path/to/workspace --output ./output
+```
 
 ## Usage
 
@@ -159,3 +207,10 @@ Example questions an agent can ask through MCP:
 - gRPC
 - runtime reconciliation with OpenTelemetry service graphs
 - graph UI and interactive exploration
+
+## References
+
+- [Claude Code settings](https://code.claude.com/docs/en/settings)
+- [Claude Code setup](https://code.claude.com/docs/en/setup)
+- [OpenAI Codex CLI](https://developers.openai.com/codex/cli)
+- [How OpenAI uses Codex](https://openai.com/business/guides-and-resources/how-openai-uses-codex/)
