@@ -1,0 +1,11 @@
+node_modules/
+
+# Generated artifacts
+output/
+obsidian-vault/
+.microservice-kg/
+
+# Local editor state
+.DS_Store
+.idea/
+.vscode/
