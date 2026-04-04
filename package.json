@@ -1,8 +1,13 @@
 {
-  "name": "@self/microservice-kg",
+  "name": "microservice-kg",
   "version": "0.1.0",
-  "description": "Consolidated microservice knowledge graph generator for multi-repo workspaces",
+  "description": "Consolidated microservice knowledge graph generator for multi-repo workspaces, with MCP support for agentic coding",
   "type": "module",
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "microservice-kg": "./src/cli.mjs",
     "microservice-kg-mcp": "./src/mcp-server.mjs"
@@ -10,14 +15,30 @@
   "scripts": {
     "analyze": "node ./src/cli.mjs analyze",
     "start": "node ./src/cli.mjs",
-    "mcp": "node ./src/mcp-server.mjs"
+    "mcp": "node ./src/mcp-server.mjs",
+    "pack:check": "npm pack --dry-run"
   },
   "keywords": [
     "microservices",
     "knowledge-graph",
     "architecture",
     "java",
-    "spring"
+    "spring",
+    "mcp",
+    "agentic-coding",
+    "dependency-graph",
+    "static-analysis"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pawarss1/microservice-kg.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pawarss1/microservice-kg/issues"
+  },
+  "homepage": "https://github.com/pawarss1/microservice-kg#readme",
+  "engines": {
+    "node": ">=20"
+  }
 }
