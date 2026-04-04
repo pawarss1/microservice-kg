@@ -6,7 +6,6 @@ const IGNORED_DIR_NAMES = new Set([
   ".idea",
   ".gradle",
   ".microservice-kg",
-  ".gitnexus",
   ".claude",
   "build",
   "dist",
