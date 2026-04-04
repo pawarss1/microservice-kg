@@ -20,7 +20,8 @@
     "analyze": "node ./src/cli.mjs analyze",
     "start": "node ./src/cli.mjs",
     "mcp": "node ./src/mcp-server.mjs",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "build:github-package": "node ./scripts/build-github-package.mjs"
   },
   "keywords": [
     "microservices",

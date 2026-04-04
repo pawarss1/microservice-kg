@@ -1,0 +1,32 @@
+name: Publish GitHub Package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: "@${{ github.repository_owner }}"
+
+      - name: Build scoped GitHub package
+        run: node ./scripts/build-github-package.mjs
+        env:
+          PACKAGE_SCOPE: ${{ github.repository_owner }}
+
+      - name: Publish to GitHub Packages
+        run: cd ./.microservice-kg/github-package && npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

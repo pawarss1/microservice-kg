@@ -111,6 +111,20 @@ Or run it without a global install:
 npx microservice-kg analyze /path/to/workspace --output ./output
 ```
 
+## Scoped GitHub Packages distribution
+
+The repository can also publish a scoped package for GitHub Packages:
+
+```bash
+@pawarss1/microservice-kg
+```
+
+That distribution is intended for GitHub-native package discovery and for populating the repository's `Packages` section. The public npm package remains:
+
+```bash
+microservice-kg
+```
+
 ## Usage
 
 ```bash
