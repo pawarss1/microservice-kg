@@ -99,6 +99,10 @@ The images below are sanitized examples intended for the public README.
 
 ![Obsidian graph view](docs/images/obsidian-graph-view.png)
 
+### Obsidian graph detail
+
+![Obsidian graph detail](docs/images/obsidian-graph-fullscreen.png)
+
 ## Install
 
 ```bash
