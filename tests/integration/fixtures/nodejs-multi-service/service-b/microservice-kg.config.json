@@ -1,0 +1,5 @@
+{
+  "queues": [
+    { "channel": "order-events", "role": "subscriber" }
+  ]
+}

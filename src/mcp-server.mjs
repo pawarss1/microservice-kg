@@ -133,9 +133,7 @@ async function dispatchToolCall(name, args = {}) {
 }
 
 function send(message) {
-  const json = JSON.stringify(message);
-  const payload = `Content-Length: ${Buffer.byteLength(json, "utf8")}\r\n\r\n${json}`;
-  process.stdout.write(payload);
+  process.stdout.write(JSON.stringify(message) + "\n");
 }
 
 function success(id, result) {
@@ -214,45 +212,27 @@ async function handleMessage(message) {
   }
 }
 
-let buffer = Buffer.alloc(0);
+let lineBuffer = "";
+process.stdin.setEncoding("utf8");
 process.stdin.on("data", async (chunk) => {
-  buffer = Buffer.concat([buffer, chunk]);
+  lineBuffer += chunk;
+  const lines = lineBuffer.split("\n");
+  lineBuffer = lines.pop();
 
-  while (true) {
-    const separatorIndex = buffer.indexOf("\r\n\r\n");
-    if (separatorIndex === -1) {
-      return;
-    }
-
-    const headerText = buffer.slice(0, separatorIndex).toString("utf8");
-    const lengthMatch = headerText.match(/Content-Length:\s*(\d+)/i);
-    if (!lengthMatch) {
-      buffer = buffer.slice(separatorIndex + 4);
-      continue;
-    }
-
-    const contentLength = Number(lengthMatch[1]);
-    const totalLength = separatorIndex + 4 + contentLength;
-    if (buffer.length < totalLength) {
-      return;
-    }
-
-    const body = buffer.slice(separatorIndex + 4, totalLength).toString("utf8");
-    buffer = buffer.slice(totalLength);
-
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
     try {
-      const message = JSON.parse(body);
+      const message = JSON.parse(trimmed);
       await handleMessage(message);
     } catch (error) {
-      if (typeof error !== "undefined") {
-        send({
-          jsonrpc: "2.0",
-          error: {
-            code: -32700,
-            message: error?.message || String(error),
-          },
-        });
-      }
+      send({
+        jsonrpc: "2.0",
+        error: {
+          code: -32700,
+          message: error?.message || String(error),
+        },
+      });
     }
   }
 });

@@ -1,0 +1,6 @@
+{
+  "name": "service-c",
+  "version": "1.0.0",
+  "description": "Subscriber service C — consumes messages from the order-events queue",
+  "main": "index.js"
+}

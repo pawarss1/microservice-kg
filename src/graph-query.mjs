@@ -50,6 +50,8 @@ export class GraphStore {
 export async function listServices(store, { includeStats = true } = {}) {
   const graph = await store.ensureGraph();
   const grouped = groupServices(graph);
+  const queueChannels = graph.queueChannels || [];
+
   const results = Object.values(grouped)
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((service) => {
@@ -75,6 +77,16 @@ export async function listServices(store, { includeStats = true } = {}) {
           graph.serviceEdges
             .filter((edge) => edge.targetServiceId === service.id)
             .map((edge) => edge.sourceServiceId),
+        ),
+        outgoingQueueChannels: uniqueSorted(
+          queueChannels
+            .filter((ch) => ch.publishers.includes(service.id))
+            .map((ch) => ch.name),
+        ),
+        incomingQueueChannels: uniqueSorted(
+          queueChannels
+            .filter((ch) => ch.subscribers.includes(service.id))
+            .map((ch) => ch.name),
         ),
       };
     });
@@ -227,11 +239,17 @@ export async function getServiceImpact(
 }
 
 function summarizeEdge(edge) {
-  return {
+  const base = {
     id: edge.id,
     sourceServiceId: edge.sourceServiceId,
     targetServiceId: edge.targetServiceId,
     protocol: edge.protocol,
+  };
+  if (edge.protocol === "queue") {
+    return { ...base, channelName: edge.channelName };
+  }
+  return {
+    ...base,
     clientClasses: uniqueSorted(edge.reasons.map((reason) => reason.clientClassName)),
     callCount: edge.calls.length,
   };

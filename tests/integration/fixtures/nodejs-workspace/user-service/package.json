@@ -1,0 +1,9 @@
+{
+  "name": "user-service",
+  "version": "1.0.0",
+  "description": "Manages users and authentication",
+  "main": "app.js",
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}

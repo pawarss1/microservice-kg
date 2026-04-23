@@ -1,0 +1,6 @@
+{
+  "name": "service-b",
+  "version": "1.0.0",
+  "description": "Subscriber service B — consumes messages from the order-events queue",
+  "main": "index.js"
+}
