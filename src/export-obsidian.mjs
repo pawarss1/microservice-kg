@@ -51,6 +51,20 @@ async function main() {
     incomingMap.get(edge.targetServiceId).push(edge);
   }
 
+  // Build per-service queue publisher/subscriber maps from queueChannels
+  const queuePublishesMap = new Map(); // serviceId → channel names[]
+  const queueSubscribesMap = new Map(); // serviceId → channel names[]
+  for (const channel of graph.queueChannels || []) {
+    for (const pub of channel.publishers) {
+      if (!queuePublishesMap.has(pub)) queuePublishesMap.set(pub, []);
+      queuePublishesMap.get(pub).push(channel.name);
+    }
+    for (const sub of channel.subscribers) {
+      if (!queueSubscribesMap.has(sub)) queueSubscribesMap.set(sub, []);
+      queueSubscribesMap.get(sub).push(channel.name);
+    }
+  }
+
   const notePathByServiceId = new Map();
   for (const serviceId of Array.from(serviceMap.keys()).sort((a, b) => a.localeCompare(b))) {
     notePathByServiceId.set(serviceId, `services/${serviceId}.md`);
@@ -103,6 +117,22 @@ async function main() {
       lines.push("");
     }
 
+    const publishes = (queuePublishesMap.get(serviceId) || []).sort((a, b) => a.localeCompare(b));
+    const subscribes = (queueSubscribesMap.get(serviceId) || []).sort((a, b) => a.localeCompare(b));
+    if (publishes.length > 0 || subscribes.length > 0) {
+      lines.push("## Queue", "");
+      if (publishes.length > 0) {
+        lines.push("**Publishes to:**", "");
+        for (const ch of publishes) lines.push(`- \`${ch}\``);
+        lines.push("");
+      }
+      if (subscribes.length > 0) {
+        lines.push("**Subscribes to:**", "");
+        for (const ch of subscribes) lines.push(`- \`${ch}\``);
+        lines.push("");
+      }
+    }
+
     lines.push("## Notes", "", "- Graph view shows logical service-to-service links from these markdown references.");
 
     await fs.writeFile(
@@ -119,6 +149,7 @@ async function main() {
     `- Input directory: \`${graph.inputDir}\``,
     `- Logical services: ${serviceIds.length}`,
     `- Service edges: ${graph.serviceEdges.length}`,
+    `- Queue channels: ${(graph.queueChannels || []).length}`,
     "",
     "## Services",
     "",

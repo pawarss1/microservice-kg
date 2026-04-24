@@ -1,0 +1,6 @@
+{
+  "name": "service-a",
+  "version": "1.0.0",
+  "description": "Publisher service — adds messages to the order-events queue",
+  "main": "index.js"
+}
