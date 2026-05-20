@@ -23,11 +23,13 @@ import { log, logAlways, exitWithError, EXIT_CODES, configureLogger } from "./lo
 import * as javaSpring from "./strategies/java-spring.mjs";
 import * as nodejs from "./strategies/nodejs.mjs";
 import * as python from "./strategies/python.mjs";
+import * as typescript from "./strategies/typescript.mjs";
 
 const STRATEGIES = new Map([
   [javaSpring.id, javaSpring],
   [nodejs.id, nodejs],
   [python.id, python],
+  [typescript.id, typescript],
 ]);
 
 // ---------------------------------------------------------------------------

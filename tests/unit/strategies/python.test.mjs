@@ -99,3 +99,108 @@ describe("python strategy: pyproject.toml parsing", () => {
     assert.equal(svc.properties["python.version"], "1.0.0");
   });
 });
+
+describe("python strategy: US1 — sourceMethodName populated from enclosing function", () => {
+  it("clients from a free function have methodName set to the function name", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    // httpx.post(...) inside async def login(...)
+    const loginClient = svc.clients.find((c) => c.methodName === "login");
+    assert.ok(loginClient, "should find a client with methodName 'login'");
+  });
+
+  it("clients from a free function have className null", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    const loginClient = svc.clients.find((c) => c.methodName === "login");
+    assert.ok(loginClient, "should find a client with methodName 'login'");
+    assert.equal(loginClient.className, null, "free-function client should have className null");
+  });
+
+  it("clients from a class method have methodName and className set", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    // httpx.get(...) inside TokenValidator.refresh_token
+    const classClient = svc.clients.find((c) => c.className === "TokenValidator");
+    assert.ok(classClient, "should find a client with className 'TokenValidator'");
+    assert.equal(classClient.methodName, "refresh_token");
+  });
+
+  it("no client has a synthetic _path_literal methodName when a real function encloses it", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    const badClients = svc.clients.filter(
+      (c) => c.methodName === "_path_literal" || c.clientName === "_path_literal",
+    );
+    // Path-literal clients that are NOT inside any function may still have null methodName
+    // but should not falsely report _path_literal as the methodName
+    for (const c of badClients) {
+      assert.notEqual(c.methodName, "_path_literal", "methodName must not be _path_literal");
+    }
+  });
+});
+
+describe("python strategy: US2 — endpoint methodName populated from handler function", () => {
+  it("FastAPI endpoints have methodName set to the handler function name", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    const verifyEp = svc.endpoints.find((ep) => ep.path === "/auth/verify");
+    assert.ok(verifyEp, "should have /auth/verify endpoint");
+    assert.equal(verifyEp.methodName, "verify_token");
+  });
+
+  it("Flask endpoints have methodName set to the handler function name", async () => {
+    const serviceRoot = path.join(FIXTURE, "notification-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    const sendEp = svc.endpoints.find((ep) => ep.path.includes("send"));
+    assert.ok(sendEp, "should have /notifications/send endpoint");
+    assert.equal(sendEp.methodName, "send_notification");
+  });
+
+  it("endpoints at module level have className null", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    for (const ep of svc.endpoints) {
+      assert.equal(ep.className, null, `endpoint ${ep.path} should have className null (module-level)`);
+    }
+  });
+});
+
+describe("python strategy: US3 — callSites populated", () => {
+  it("every client has at least one callSite entry", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    assert.ok(svc.clients.length >= 1, "auth-service should have clients");
+    for (const client of svc.clients) {
+      assert.ok(Array.isArray(client.callSites), "callSites must be an array");
+      assert.ok(client.callSites.length >= 1, `client at line ${client.line} should have callSites`);
+    }
+  });
+
+  it("callSite has filePath and line", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    const loginClient = svc.clients.find((c) => c.methodName === "login");
+    assert.ok(loginClient, "should find login client");
+    const site = loginClient.callSites[0];
+    assert.ok(typeof site.filePath === "string" && site.filePath.endsWith(".py"), "filePath must be a .py path");
+    assert.ok(Number.isInteger(site.line) && site.line > 0, "line must be a positive integer");
+  });
+
+  it("callSite line matches the client line number", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    for (const client of svc.clients) {
+      assert.equal(client.callSites[0].line, client.line, "callSite line must match client line");
+    }
+  });
+});
+
+describe("python strategy: US4 — queue subscriber detection via constants", () => {
+  it("detects subscriber binding when topic is an UPPER_CASE constant in subscribe([])", async () => {
+    const serviceRoot = path.join(FIXTURE, "auth-service");
+    const svc = await analyzeService(serviceRoot, FIXTURE);
+    const sub = svc.queueBindings.find((b) => b.role === "subscriber" && b.channel === "auth_events");
+    assert.ok(sub, "should detect subscriber binding for auth_events via EMAIL_TOPIC constant");
+  });
+});

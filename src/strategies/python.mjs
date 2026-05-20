@@ -127,7 +127,11 @@ export async function analyzeService(serviceRoot, workspaceRoot) {
   // then auto-detect queue bindings, merging with any manual config.
   const constantsMap = await buildConstantsMap(sourceFiles);
   const detectedQueueBindings = await extractPythonQueueBindings(sourceFiles, constantsMap);
-  const queueBindings = mergeQueueBindings(detectedQueueBindings, await readQueueConfig(serviceRoot));
+  const deploymentBindings = await extractDeploymentDetailsBindings(serviceRoot);
+  const queueBindings = mergeQueueBindings(
+    [...detectedQueueBindings, ...deploymentBindings],
+    await readQueueConfig(serviceRoot),
+  );
 
   return {
     id: serviceId,
@@ -328,6 +332,41 @@ function resolveTopicArg(arg, constantsMap) {
 }
 
 /**
+ * Extract queue subscriber bindings from a deployment_details.json file if present.
+ * This handles the pattern where Kafka topic names are configured externally
+ * (e.g. "TOPIC_NAME": "email_deliveries" per consumer entry) rather than in source code.
+ *
+ * @param {string} serviceRoot
+ * @returns {Promise<Array<{channel: string, role: string}>>}
+ */
+async function extractDeploymentDetailsBindings(serviceRoot) {
+  const filePath = path.join(serviceRoot, "deployment_details.json");
+  let raw;
+  try {
+    raw = await fs.readFile(filePath, "utf8");
+  } catch {
+    return [];
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  const bindings = [];
+  const consumers = parsed.consumers || parsed.CONSUMERS || {};
+  for (const entry of Object.values(consumers)) {
+    if (!entry || typeof entry !== "object") continue;
+    const topicName = entry.TOPIC_NAME || entry.topic_name;
+    if (typeof topicName === "string" && topicName.trim()) {
+      bindings.push({ channel: topicName.trim(), role: "subscriber" });
+    }
+  }
+  return bindings;
+}
+
+/**
  * Auto-detect queue publisher/subscriber bindings from Python source files.
  *
  * Covers:
@@ -369,10 +408,22 @@ async function extractPythonQueueBindings(sourceFiles, constantsMap) {
     }
 
     // ── Kafka subscriber (confluent): consumer.subscribe(['topic', ...]) ─────
+    // Also resolves UPPER_CASE constant references inside the list.
     for (const m of text.matchAll(/\.subscribe\s*\(\s*\[([^\]]+)\]/g)) {
       for (const t of extractStringList(m[1])) {
         bindings.push({ channel: t, role: "subscriber" });
       }
+      // Resolve UPPER_CASE constant references, e.g. subscribe([EMAIL_TOPIC])
+      for (const constMatch of m[1].matchAll(/\b([A-Z][A-Z0-9_]{2,})\b/g)) {
+        const resolved = constantsMap.get(constMatch[1]);
+        if (resolved) bindings.push({ channel: resolved, role: "subscriber" });
+      }
+    }
+
+    // ── Kafka subscriber: consumer.subscribe(TOPIC_CONSTANT) — no list wrapper
+    for (const m of text.matchAll(/\.subscribe\s*\(\s*([A-Z][A-Z0-9_]{2,})\s*\)/g)) {
+      const resolved = constantsMap.get(m[1]);
+      if (resolved) bindings.push({ channel: resolved, role: "subscriber" });
     }
 
     // ── Publisher: any .send(topic=X) or .send(topic=CONST) ──────────────────
@@ -646,13 +697,17 @@ function extractEndpoints(text, filePath, endpoints, routerPrefixes = new Map(),
     const routePath = match[2];
     const methodsList = match[3];
     const lineNumber = getLineNumber(text, match.index);
+    const afterDecorator = match.index + match[0].length;
+    const handlerName = findHandlerAfterDecorator(text, afterDecorator);
+    const decoratorIndent = getLineIndent(text, match.index);
+    const epClassName = findEnclosingClass(text, match.index, decoratorIndent);
     if (methodsList) {
       const methods = methodsList.match(/['"]([A-Z]+)['"]/g)?.map((m) => m.replace(/['"]/g, "")) || ["GET"];
       for (const httpMethod of methods) {
-        endpoints.push(makeEndpoint(httpMethod, routePath, filePath, lineNumber));
+        endpoints.push(makeEndpoint(httpMethod, routePath, filePath, lineNumber, handlerName, epClassName));
       }
     } else {
-      endpoints.push(makeEndpoint("GET", routePath, filePath, lineNumber));
+      endpoints.push(makeEndpoint("GET", routePath, filePath, lineNumber, handlerName, epClassName));
     }
   }
 
@@ -665,9 +720,13 @@ function extractEndpoints(text, filePath, endpoints, routerPrefixes = new Map(),
     const httpMethod = match[2].toUpperCase();
     const routePath = match[4];
     const lineNumber = getLineNumber(text, match.index);
+    const afterDecorator = match.index + match[0].length;
+    const handlerName = findHandlerAfterDecorator(text, afterDecorator);
+    const decoratorIndent = getLineIndent(text, match.index);
+    const epClassName = findEnclosingClass(text, match.index, decoratorIndent);
     // Apply include_router prefix if this router variable is registered with one
     const prefix = routerPrefixes.get(routerVar) || "";
-    endpoints.push(makeEndpoint(httpMethod, prefix + routePath, filePath, lineNumber));
+    endpoints.push(makeEndpoint(httpMethod, prefix + routePath, filePath, lineNumber, handlerName, epClassName));
   }
 
   // Django urls.py: path('endpoint/', view), re_path(r'^endpoint/', view)
@@ -689,29 +748,27 @@ function extractEndpoints(text, filePath, endpoints, routerPrefixes = new Map(),
     const fullPrefix = djangoPrefix ? `${djangoPrefix}/${localPrefix}` : localPrefix;
     for (const httpMethod of ["GET", "POST"]) {
       endpoints.push({
-        ...makeEndpoint(httpMethod, `/${fullPrefix}/`, filePath, lineNumber),
-        className: viewSetName,
+        ...makeEndpoint(httpMethod, `/${fullPrefix}/`, filePath, lineNumber, viewSetName, viewSetName),
         routerGenerated: true,
       });
     }
     for (const httpMethod of ["GET", "PUT", "PATCH", "DELETE"]) {
       endpoints.push({
-        ...makeEndpoint(httpMethod, `/${fullPrefix}/{}/`, filePath, lineNumber),
-        className: viewSetName,
+        ...makeEndpoint(httpMethod, `/${fullPrefix}/{}/`, filePath, lineNumber, viewSetName, viewSetName),
         routerGenerated: true,
       });
     }
   }
 }
 
-function makeEndpoint(httpMethod, routePath, filePath, lineNumber) {
+function makeEndpoint(httpMethod, routePath, filePath, lineNumber, methodName = null, className = null) {
   return {
     id: `Endpoint:${filePath}:${httpMethod}:${routePath}:${lineNumber}`,
     httpMethod: httpMethod.toUpperCase(),
     path: routePath,
     fullPath: normalizePath(routePath),
-    className: null,
-    methodName: null,
+    className,
+    methodName,
     filePath,
     line: lineNumber,
   };
@@ -813,16 +870,20 @@ function extractClients(text, filePath, clients) {
       const httpMethod = match[1].toUpperCase();
       const url = match[3];
       const lineNumber = getLineNumber(text, match.index);
+      const { methodName, methodIndentLen } = findEnclosingFunction(text, match.index);
+      const className = findEnclosingClass(text, match.index, methodIndentLen);
       clients.push({
         id: `Client:${filePath}:${alias}:${lineNumber}`,
         clientName: alias,
+        methodName,
+        className,
         baseUrl: url,
         fullPath: normalizePath(url),
         httpMethod,
         path: normalizePath(url),
         filePath,
         line: lineNumber,
-        callSites: [],
+        callSites: [{ filePath, line: lineNumber }],
       });
     }
 
@@ -842,9 +903,13 @@ function extractClients(text, filePath, clients) {
       if (!urlVarMap.has(urlVar)) continue;
       const lineNumber = getLineNumber(text, match.index);
       const urlInfo = urlVarMap.get(urlVar);
+      const { methodName: methodNameB, methodIndentLen: miLenB } = findEnclosingFunction(text, match.index);
+      const classNameB = findEnclosingClass(text, match.index, miLenB);
       clients.push({
         id: `Client:${filePath}:${alias}:var:${lineNumber}`,
         clientName: urlVar,
+        methodName: methodNameB,
+        className: classNameB,
         urlExpression: urlInfo.urlExpression || urlVar,
         baseUrl: null,
         fullPath: urlInfo.path ? normalizePath(urlInfo.path) : null,
@@ -852,7 +917,7 @@ function extractClients(text, filePath, clients) {
         path: urlInfo.path ? normalizePath(urlInfo.path) : null,
         filePath,
         line: lineNumber,
-        callSites: [],
+        callSites: [{ filePath, line: lineNumber }],
       });
     }
 
@@ -866,9 +931,13 @@ function extractClients(text, filePath, clients) {
       const urlVar = match[3];
       const lineNumber = getLineNumber(text, match.index);
       const urlInfo = urlVarMap.get(urlVar) || {};
+      const { methodName: methodNameC, methodIndentLen: miLenC } = findEnclosingFunction(text, match.index);
+      const classNameC = findEnclosingClass(text, match.index, miLenC);
       clients.push({
         id: `Client:${filePath}:${alias}:req:${lineNumber}`,
         clientName: urlVar,
+        methodName: methodNameC,
+        className: classNameC,
         urlExpression: urlInfo.urlExpression || urlVar,
         baseUrl: null,
         fullPath: urlInfo.path ? normalizePath(urlInfo.path) : null,
@@ -876,7 +945,7 @@ function extractClients(text, filePath, clients) {
         path: urlInfo.path ? normalizePath(urlInfo.path) : null,
         filePath,
         line: lineNumber,
-        callSites: [],
+        callSites: [{ filePath, line: lineNumber }],
       });
     }
 
@@ -893,9 +962,13 @@ function extractClients(text, filePath, clients) {
       if (!urlExpression && !pathPart) continue;
       const lineNumber = getLineNumber(text, match.index);
       const normalizedPath = pathPart ? normalizePath(pathPart) : null;
+      const { methodName: methodNameD, methodIndentLen: miLenD } = findEnclosingFunction(text, match.index);
+      const classNameD = findEnclosingClass(text, match.index, miLenD);
       clients.push({
         id: `Client:${filePath}:${alias}:fstr:${lineNumber}`,
         clientName: urlExpression || alias,
+        methodName: methodNameD,
+        className: classNameD,
         urlExpression,
         baseUrl: null,
         fullPath: normalizedPath,
@@ -903,7 +976,7 @@ function extractClients(text, filePath, clients) {
         path: normalizedPath,
         filePath,
         line: lineNumber,
-        callSites: [],
+        callSites: [{ filePath, line: lineNumber }],
       });
     }
   }
@@ -918,9 +991,13 @@ function extractClients(text, filePath, clients) {
     // Must have at least one interior slash (multi-segment)
     if (!rawPath.slice(1).includes("/")) continue;
     const lineNumber = getLineNumber(text, match.index);
+    const { methodName: methodNameE, methodIndentLen: miLenE } = findEnclosingFunction(text, match.index);
+    const classNameE = findEnclosingClass(text, match.index, miLenE);
     clients.push({
       id: `Client:${filePath}:path-lit:${lineNumber}`,
       clientName: "_path_literal",
+      methodName: methodNameE,
+      className: classNameE,
       urlExpression: null,
       baseUrl: null,
       fullPath: normalizePath(rawPath),
@@ -928,7 +1005,7 @@ function extractClients(text, filePath, clients) {
       path: normalizePath(rawPath),
       filePath,
       line: lineNumber,
-      callSites: [],
+      callSites: [{ filePath, line: lineNumber }],
     });
   }
 }
@@ -956,6 +1033,71 @@ function extractModels(text, filePath, classes) {
       line: lineNumber,
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Enclosing scope helpers (for extracting methodName / className context)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the number of leading spaces on the line that contains `index`.
+ */
+function getLineIndent(text, index) {
+  const lineStart = text.lastIndexOf("\n", index - 1) + 1;
+  const m = text.slice(lineStart).match(/^(\s*)/);
+  return m ? m[1].length : 0;
+}
+
+/**
+ * Scan backward from `callIndex` and return the first `def` / `async def`
+ * whose indentation is strictly less than the call site's indentation.
+ *
+ * @returns {{ methodName: string|null, methodIndentLen: number }}
+ */
+function findEnclosingFunction(text, callIndex) {
+  const callIndent = getLineIndent(text, callIndex);
+  const lines = text.slice(0, callIndex).split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const m = lines[i].match(/^(\s*)(?:async\s+)?def\s+(\w+)/);
+    if (m && m[1].length < callIndent) {
+      return { methodName: m[2], methodIndentLen: m[1].length };
+    }
+  }
+  return { methodName: null, methodIndentLen: -1 };
+}
+
+/**
+ * Scan backward from `callIndex` and return the first `class` whose
+ * indentation is strictly less than `methodIndentLen`.
+ *
+ * @returns {string|null}
+ */
+function findEnclosingClass(text, callIndex, methodIndentLen) {
+  if (methodIndentLen <= 0) return null;
+  const lines = text.slice(0, callIndex).split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const m = lines[i].match(/^(\s*)class\s+(\w+)/);
+    if (m && m[1].length < methodIndentLen) {
+      return m[2];
+    }
+  }
+  return null;
+}
+
+/**
+ * Scan forward from `afterIndex` and return the name of the first
+ * `def` / `async def` encountered (within 30 lines).
+ *
+ * @returns {string|null}
+ */
+function findHandlerAfterDecorator(text, afterIndex) {
+  const after = text.slice(afterIndex);
+  const lines = after.split("\n");
+  for (let i = 0; i < Math.min(lines.length, 30); i++) {
+    const m = lines[i].match(/(?:async\s+)?def\s+(\w+)/);
+    if (m) return m[1];
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
