@@ -10,6 +10,12 @@ import {
   getServiceImpact,
   listServices,
 } from "./graph-query.mjs";
+import {
+  findFeatureContext,
+  getEndpointContext,
+  getMethodContext,
+  getRelatedCodeChunks,
+} from "./vector-retrieval.mjs";
 
 const DEFAULT_GRAPH_PATH = process.env.MICROSERVICE_KG_GRAPH
   ? path.resolve(process.env.MICROSERVICE_KG_GRAPH)
@@ -111,6 +117,119 @@ const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "find_feature_context",
+    description:
+      "Primary repo-context retrieval tool. Use this first for natural-language questions about feature flow, endpoint ownership, implementation context, impacted logic, or where code lives. It uses KG-first retrieval with vector fallback and should usually be preferred over broad manual repo search for fuzzy repository questions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Feature question, symbol-like query, or implementation prompt." },
+        limit: { type: "integer", minimum: 1, description: "Maximum number of top results to include." },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_method_context",
+    description:
+      "Return graph context and supporting code evidence for one exact method id. Prefer this when the method is already known.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        methodId: { type: "string", description: "Exact graph method id." },
+        limit: { type: "integer", minimum: 1, description: "Maximum number of top results to include." },
+      },
+      required: ["methodId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_endpoint_context",
+    description:
+      "Return graph context and supporting code evidence for one endpoint by id, path, or handler method name. Prefer this when the endpoint is already known.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        endpointId: { type: "string", description: "Exact graph endpoint id." },
+        endpointPath: { type: "string", description: "Resolved endpoint path." },
+        methodName: { type: "string", description: "Handler method name if endpoint id/path is not known." },
+        limit: { type: "integer", minimum: 1, description: "Maximum number of top results to include." },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_related_code_chunks",
+    description:
+      "Return supporting code evidence for a natural-language query, method id, or endpoint id. Use this when you mainly need code snippets rather than full graph flow context.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        queryOrEntityId: { type: "string", description: "Natural-language query, Method:* id, or Endpoint:* id." },
+        limit: { type: "integer", minimum: 1, description: "Maximum number of chunks to include." },
+      },
+      required: ["queryOrEntityId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "explain_feature_flow",
+    description:
+      "Alias for find_feature_context with a more natural name. Use this first for fuzzy developer questions like 'Explain lead creation flow end-to-end' or 'Where does retry logic live?'",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Natural-language feature or implementation question." },
+        limit: { type: "integer", minimum: 1, description: "Maximum number of top results to include." },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "explain_method_context",
+    description: "Alias for get_method_context. Use when you know the exact method and want graph context plus supporting code evidence.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        methodId: { type: "string", description: "Exact graph method id." },
+        limit: { type: "integer", minimum: 1, description: "Maximum number of top results to include." },
+      },
+      required: ["methodId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "explain_endpoint_context",
+    description:
+      "Alias for get_endpoint_context. Use when you know the endpoint path, endpoint id, or handler method and want the surrounding implementation flow.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        endpointId: { type: "string", description: "Exact graph endpoint id." },
+        endpointPath: { type: "string", description: "Resolved endpoint path." },
+        methodName: { type: "string", description: "Handler method name if endpoint id/path is not known." },
+        limit: { type: "integer", minimum: 1, description: "Maximum number of top results to include." },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "find_code_evidence",
+    description:
+      "Alias for get_related_code_chunks. Use when you mainly want the most relevant implementation snippets for a feature, method, or endpoint.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        queryOrEntityId: { type: "string", description: "Natural-language query, Method:* id, or Endpoint:* id." },
+        limit: { type: "integer", minimum: 1, description: "Maximum number of chunks to include." },
+      },
+      required: ["queryOrEntityId"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 async function dispatchToolCall(name, args = {}) {
@@ -127,6 +246,18 @@ async function dispatchToolCall(name, args = {}) {
       return getDependencyPath(store, args);
     case "service_impact":
       return getServiceImpact(store, args);
+    case "find_feature_context":
+    case "explain_feature_flow":
+      return findFeatureContext(store, args);
+    case "get_method_context":
+    case "explain_method_context":
+      return getMethodContext(store, args);
+    case "get_endpoint_context":
+    case "explain_endpoint_context":
+      return getEndpointContext(store, args);
+    case "get_related_code_chunks":
+    case "find_code_evidence":
+      return getRelatedCodeChunks(store, args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

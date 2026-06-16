@@ -184,13 +184,48 @@ Available MCP tools:
 - `edge_details`
 - `dependency_path`
 - `service_impact`
+- `find_feature_context`
+- `get_method_context`
+- `get_endpoint_context`
+- `get_related_code_chunks`
+- `explain_feature_flow` (alias of `find_feature_context`)
+- `explain_method_context` (alias of `get_method_context`)
+- `explain_endpoint_context` (alias of `get_endpoint_context`)
+- `find_code_evidence` (alias of `get_related_code_chunks`)
+
+Tool selection guidance for agents:
+
+- Prefer `find_feature_context` or `explain_feature_flow` first for natural-language repository questions about feature behavior, flow, implementation context, endpoint ownership, or impacted logic.
+- Use `get_method_context` or `explain_method_context` when the exact method is already known.
+- Use `get_endpoint_context` or `explain_endpoint_context` when the exact endpoint path, endpoint id, or handler method is already known.
+- Use `get_related_code_chunks` or `find_code_evidence` when code snippets are the main goal and a full flow reconstruction is not necessary.
+- Fall back to broad manual repo search only when MCP results are low-confidence or clearly insufficient.
 
 For `dependency_path` and `service_impact`, `maxDepth` is optional. If omitted, traversal walks as deep as the currently loaded logical service graph allows.
+
+The retrieval-oriented tools use the vector indexer bridge and expect:
+
+- `KG_VECTOR_CHROMA_PATH`
+- optional `KG_VECTOR_COLLECTION` (defaults to `lead_code_chunks`)
+- either:
+  - `KG_VECTOR_RETRIEVE_CMD` if `kg-retrieve` is installed on `PATH`
+  - or `KG_VECTOR_INDEXER_SRC` plus optional `KG_VECTOR_PYTHON` for local source-based execution
 
 Example MCP registration:
 
 ```bash
 codex mcp add microservice-kg -- env MICROSERVICE_KG_GRAPH=/path/to/service-graph.json node /path/to/microservice-kg/src/mcp-server.mjs
+```
+
+Example MCP registration with vector retrieval enabled:
+
+```bash
+codex mcp add microservice-kg -- env \
+MICROSERVICE_KG_GRAPH=/path/to/service-graph.json \
+KG_VECTOR_CHROMA_PATH=/path/to/chroma \
+KG_VECTOR_INDEXER_SRC=/path/to/kg-vector-indexer/src \
+KG_VECTOR_PYTHON=/path/to/kg-vector-indexer/.venv/bin/python3 \
+node /path/to/microservice-kg/src/mcp-server.mjs
 ```
 
 Example questions an agent can ask through MCP:
@@ -200,6 +235,20 @@ Example questions an agent can ask through MCP:
 - "Explain the edge between two services with method-level evidence."
 - "Find the dependency path from one service to another."
 - "Show the downstream impact of changing a service."
+- "Which endpoint handles lead creation?"
+- "Explain lead creation flow end-to-end."
+- "Show method context for LeadApiImpl.createLead."
+- "Get related code chunks for the lead creation flow."
+
+## Retrieval hop depth
+
+The KG traversal used by the retrieval tools is currently intent-based:
+
+- endpoint or handler lookup questions: `1` hop
+- flow/path/how-it-works questions: `2` hops
+- impact/dependency/blast-radius questions: `3` hops
+
+This hop depth is decided inside `kg-vector-indexer` query intent parsing and graph traversal, not in the MCP layer itself.
 
 ## Current scope
 
