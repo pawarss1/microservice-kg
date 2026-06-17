@@ -104,9 +104,50 @@ describe("detectLanguage: error conditions", () => {
 });
 
 describe("SUPPORTED_LANGUAGES", () => {
-  it("contains all three languages", () => {
+  it("contains all four languages", () => {
     assert.ok(SUPPORTED_LANGUAGES.includes("java-spring"));
     assert.ok(SUPPORTED_LANGUAGES.includes("nodejs"));
     assert.ok(SUPPORTED_LANGUAGES.includes("python"));
+    assert.ok(SUPPORTED_LANGUAGES.includes("typescript"));
+  });
+});
+
+describe("detectLanguage: TypeScript detection", () => {
+  it("detects TypeScript from tsconfig.json (fixture)", async () => {
+    const result = await detectLanguage(path.join(FIXTURES, "typescript-workspace"));
+    assert.equal(result.language, "typescript");
+  });
+
+  it("tsconfig.json scores higher than package.json alone", async () => {
+    const dir = await makeTmpDir({
+      "tsconfig.json": "{}",
+      "package.json": '{"name":"my-app"}',
+    });
+    try {
+      const result = await detectLanguage(dir);
+      assert.equal(result.language, "typescript");
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("directory with only package.json detects as nodejs (not typescript)", async () => {
+    const dir = await makeTmpDir({ "package.json": '{"name":"my-app"}' });
+    try {
+      const result = await detectLanguage(dir);
+      assert.equal(result.language, "nodejs");
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts typescript as explicit --language", async () => {
+    const dir = await makeTmpDir({});
+    try {
+      const result = await detectLanguage(dir, { language: "typescript" });
+      assert.equal(result.language, "typescript");
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 });

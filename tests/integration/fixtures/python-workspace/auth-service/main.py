@@ -14,3 +14,9 @@ async def login(credentials: dict):
     # Notify the notification service on login (functional httpx API for static detectability)
     httpx.post("http://notification-service:8002/notifications/send", json={"event": "login"})
     return {"token": "abc123"}
+
+
+class TokenValidator:
+    def refresh_token(self, old_token: str):
+        response = httpx.get("http://notification-service:8002/notifications/status")
+        return {"refreshed": True}

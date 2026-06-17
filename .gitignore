@@ -13,3 +13,9 @@ obsidian-vault/
 .DS_Store
 .idea/
 .vscode/
+
+# Claude / Speckit artifacts
+CLAUDE.md
+specs/
+.claude/
+.specify/

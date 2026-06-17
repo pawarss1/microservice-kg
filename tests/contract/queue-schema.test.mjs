@@ -182,3 +182,20 @@ describe("Contract: queueBindings field on service objects", () => {
     }
   });
 });
+
+describe("Contract: queueChannels subscribers is always an array (US4 non-regression)", () => {
+  it("python workspace queueChannels subscribers field is always an array", async () => {
+    const graph = await analyzeWorkspace(path.join(FIXTURES, "python-workspace"), { language: "python" });
+    assertArray(graph.queueChannels, "queueChannels");
+    for (const ch of graph.queueChannels) {
+      assertArray(ch.subscribers, `queueChannels[${ch.name}].subscribers`);
+    }
+  });
+
+  it("python auth_events channel has auth-service as subscriber", async () => {
+    const graph = await analyzeWorkspace(path.join(FIXTURES, "python-workspace"), { language: "python" });
+    const authEventsCh = graph.queueChannels.find((ch) => ch.name === "auth_events");
+    assert.ok(authEventsCh, "auth_events channel should be present");
+    assert.ok(authEventsCh.subscribers.includes("auth-service"), "auth-service should be a subscriber of auth_events");
+  });
+});

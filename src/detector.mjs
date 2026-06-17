@@ -15,6 +15,7 @@ const INDICATOR_SCORES = {
   "pom.xml":          { language: "java-spring", score: 10 },
   "build.gradle":     { language: "java-spring", score: 10 },
   "build.gradle.kts": { language: "java-spring", score: 10 },
+  "tsconfig.json":    { language: "typescript",  score: 12 },
   "package.json":     { language: "nodejs",      score: 10 },
   "pyproject.toml":   { language: "python",      score: 10 },
   "setup.py":         { language: "python",      score: 8  },
@@ -22,7 +23,7 @@ const INDICATOR_SCORES = {
   "requirements.txt": { language: "python",      score: 6  },
 };
 
-export const SUPPORTED_LANGUAGES = ["java-spring", "nodejs", "python"];
+export const SUPPORTED_LANGUAGES = ["java-spring", "nodejs", "python", "typescript"];
 
 /**
  * Detect the primary language of a workspace.

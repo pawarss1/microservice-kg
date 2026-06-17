@@ -39,7 +39,7 @@ function validateContextOutput(graph, label) {
     assertString(service.name, "service.name");
     assertString(service.language, "service.language");
     assert.ok(
-      ["java-spring", "nodejs", "python"].includes(service.language),
+      ["java-spring", "nodejs", "python", "typescript"].includes(service.language),
       `service.language "${service.language}" must be a supported language`,
     );
     assertString(service.rootDir, "service.rootDir");
@@ -68,7 +68,7 @@ function validateContextOutput(graph, label) {
     assertString(edge.id, "edge.id");
     assertString(edge.sourceServiceId, "edge.sourceServiceId");
     assertString(edge.targetServiceId, "edge.targetServiceId");
-    assert.equal(edge.protocol, "http", "edge.protocol must be http");
+    assert.ok(["http", "queue"].includes(edge.protocol), `edge.protocol "${edge.protocol}" must be http or queue`);
     assertArray(edge.reasons, "edge.reasons");
     assertArray(edge.calls, "edge.calls");
   }
@@ -94,5 +94,66 @@ describe("Contract: ContextOutput schema", () => {
     validateContextOutput(graph, "python");
     assert.ok(graph.services.every((s) => s.language === "python"), "all services should have language = python");
     assert.ok(graph.serviceCount >= 2, "should discover at least 2 services");
+  });
+});
+
+describe("Contract: ContextOutput schema — TypeScript workspace (T025)", () => {
+  it("TypeScript workspace produces valid schema", async () => {
+    const graph = await analyzeWorkspace(path.join(FIXTURES, "typescript-workspace"), { language: "typescript" });
+    validateContextOutput(graph, "typescript");
+    assert.ok(graph.services.every((s) => s.language === "typescript"), "all services should have language = typescript");
+    assert.equal(graph.serviceCount, 2, "should discover exactly 2 services");
+  });
+
+  it("TypeScript workspace auto-detects as typescript", async () => {
+    const graph = await analyzeWorkspace(path.join(FIXTURES, "typescript-workspace"));
+    assert.equal(graph.language, "typescript");
+    validateContextOutput(graph, "typescript-auto");
+  });
+});
+
+describe("Contract: Python call field quality (US1, US2, US3)", () => {
+  it("all Python calls have non-empty callSites", async () => {
+    const graph = await analyzeWorkspace(path.join(FIXTURES, "python-workspace"), { language: "python" });
+    const httpEdges = graph.serviceEdges.filter((e) => e.protocol === "http");
+    for (const edge of httpEdges) {
+      for (const call of edge.calls) {
+        assertArray(call.callSites, `call.callSites (${edge.id})`);
+        assert.ok(call.callSites.length >= 1, `calls[].callSites must be non-empty for edge ${edge.id}`);
+        assertString(call.callSites[0].filePath, "callSites[0].filePath");
+        assertNumber(call.callSites[0].line, "callSites[0].line");
+        assert.ok(call.callSites[0].line > 0, "callSites[0].line must be positive");
+      }
+    }
+  });
+
+  it("all Python calls have a valid Python identifier as sourceMethodName", async () => {
+    const graph = await analyzeWorkspace(path.join(FIXTURES, "python-workspace"), { language: "python" });
+    const httpEdges = graph.serviceEdges.filter((e) => e.protocol === "http");
+    const IDENTIFIER_RE = /^[a-z_]\w*$/i;
+    for (const edge of httpEdges) {
+      for (const call of edge.calls) {
+        if (call.sourceMethodName !== null) {
+          assert.ok(
+            IDENTIFIER_RE.test(call.sourceMethodName),
+            `sourceMethodName "${call.sourceMethodName}" must be a valid Python identifier (edge: ${edge.id})`,
+          );
+        }
+      }
+    }
+  });
+
+  it("all Python provider objects with targetFilePath have a non-null targetMethodName", async () => {
+    const graph = await analyzeWorkspace(path.join(FIXTURES, "python-workspace"), { language: "python" });
+    for (const edge of graph.serviceEdges.filter((e) => e.protocol === "http")) {
+      for (const call of edge.calls) {
+        if (call.provider && call.provider.targetFilePath) {
+          assert.ok(
+            call.provider.targetMethodName !== null,
+            `provider.targetMethodName must be non-null when targetFilePath is set (edge: ${edge.id})`,
+          );
+        }
+      }
+    }
   });
 });
